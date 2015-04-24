@@ -14,32 +14,39 @@ set.seed(1)
 setwd("C:/Users/User/Documents/R/SpaceApps1/")
 
 load("TrainData.rda")
+load("TestData.rda")
 
 
 # Further partitioning our original training data into training and test sets
 inTrain         = createDataPartition(TrainData$orbit_type, p = 0.8)[[1]]
 training        <- TrainData[inTrain,]
-remainder        <- TrainData[-inTrain,]
+testing        <- TrainData[-inTrain,]
 
 
 ##
 # RF
 
 set.seed(415)
-RFfit <- train(orbit_type~.,  
-                      data = training[,!(names(training) %in% c("designation", "objectnumber"))], 
+RFfitOrbit <- train(orbit_type~.,  
+                      data = training[,!(names(training) %in% c("designation", "objectnumber", "id", "number"))], 
                       method = "rf",
                       importance = TRUE)
-save(RFfit, file = "RFfit.rda")
+save(RFfitOrbit, file = "RFfitOrbit.rda")
 
-load("RFfit.rda")
-predictionRF <- predict(RFfit, newdata = remainder)
-confusionMatrix(remainder$orbit_type, predictionRF)
+load("RFfitOrbit.rda")
+predictionRF <- predict(RFfitOrbit, newdata = testing)
+confusionMatrix(testing$orbit_type, predictionRF)
 save(predictionRF, file = "predictionRF.rda")
+
+UNKNOWNpredictionRF <- predict(RFfitOrbit, newdata = TestData)
+png(filename = "OrbitTypesPredicted.png", width = 500, height = 500)
+qplot(UNKNOWNpredictionRF, geom="histogram")
+dev.off()
+
 
 # Plot variable importance
 png(filename = "RFimp.png", width = 1920, height = 1080)
-varImpPlot(RFfit$finalModel)
+varImpPlot(RFfitOrbit$finalModel)
 dev.off()
 
 
@@ -63,11 +70,33 @@ CT <- train(orbit_type~.,
 )
 save(CT, file = "ctree.rda")
 load("ctree.rda")
-predictionCtree <- predict(CT, newdata = remainder)
-confusionMatrix(remainder$orbit_type, predictionCtree)
+predictionCtree <- predict(CT, newdata = testing)
+confusionMatrix(testing$orbit_type, predictionCtree)
 
 
 
+###
+###
+###
+
+# Now let's try to predict orbit types based ONLY on lightcurves data:
+set.seed(415)
+RFfitOrbitLC <- train(training$orbit_type~.,  
+                    data = training[seq(108,265)], 
+                    method = "rf",
+                    importance = TRUE)
+save(RFfitOrbitLC, file = "RFfitOrbitLC.rda")
+load("RFfitOrbitLC.rda")
+predictionRFLC <- predict(RFfitOrbitLC, newdata = testing)
+confusionMatrix(testing$orbit_type, predictionRFLC)
+
+# plot variable importance
+png(filename = "RfimpLC.png", width = 1000, height = 1000)
+varImpPlot(RFfitOrbitLC$finalModel)
+dev.off()
+
+
+# Unique asteroids among our data
 summary(factor(TrainData$objectnumber))
 unique(TrainData$objectnumber)
 

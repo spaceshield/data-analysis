@@ -61,11 +61,22 @@ RawData <- RawData[,!(names(RawData) %in% drops)]
 sapply(RawData, nlevels)
 
 # Right formats of the necessary variables. 
+RawData$pha=factor(as.numeric(RawData$pha))
+revalue(RawData$pha, c("1" = "2")) -> RawData$pha
 RawData$pha = factor(RawData$pha, labels = c(FALSE, TRUE))
-RawData$orbit_type = factor(RawData$orbit_type)
+
+lev = levels(RawData$orbit_type)
+RawData$orbit_type[is.na(RawData$orbit_type)] = 0
+RawData$orbit_type = factor(RawData$orbit_type, labels = lev)
 RawData$designation = factor(RawData$designation)
 RawData$objectnumber = factor(RawData$objectnumber)
+
+RawData$critical_list_numbered_object=factor(as.numeric(RawData$critical_list_numbered_object))
+revalue(RawData$critical_list_numbered_object, c("1" = "2")) -> RawData$critical_list_numbered_object
 RawData$critical_list_numbered_object = factor(RawData$critical_list_numbered_object, labels = c(FALSE, TRUE))
+
+RawData$neo=factor(as.numeric(RawData$neo))
+revalue(RawData$neo, c("1" = "2")) -> RawData$neo
 RawData$neo = factor(RawData$neo, labels = c(FALSE, TRUE))
 
 
@@ -91,7 +102,7 @@ num = RawData[names(cla[cla!="factor"])]
 #Imputing numeric values
 PreprocessObj <- preProcess(num,
                             thresh = 0.99, 
-                            method = c( "center", "scale","knnImpute"),
+                            method = c( "knnImpute"),
                             k = 3,)
 save(file="PreprocessObj.rda", x=PreprocessObj)
 load("PreprocessObj.rda")
@@ -109,23 +120,24 @@ ProcessedData <- as.data.frame(cbind(factors, num))
 summary(factor(RawData$orbit_type))
 # There is only 1 observation for "1" type of the orbit, so we will be unable to predict those. 
 # That observation will be dropped.
+ProcessedData$diamNotNormalised = RawData$diameter_neowise
+ProcessedData$diamLOG = log(RawData$diameter_neowise)
 ProcessedData <- ProcessedData[ProcessedData$orbit_type != "1",]
         
 TrainData <- ProcessedData[ProcessedData$orbit_type != "0",]
 TrainData$orbit_type = factor(TrainData$orbit_type)
 TestData <- ProcessedData[ProcessedData$orbit_type == "0",]
 
-# Plotting Orbit Vs Neo Vs Perihelion
-TrainData$neo = factor(TrainData$neo, levels = c(TRUE, FALSE))
-# Create a custom color scale
-myColors <- brewer.pal(2,"Set2")
-names(myColors) <- levels(TrainData$pha)
-colScale <- scale_colour_manual(name = "pha",values = myColors)
-# Plot
-png(filename = "OrbitVsNeoVsPerihelion.png", width = 600, height = 600)
-q <- qplot(orbit_type, perihelion_distance, data = TrainData,facets = .~neo, color=pha, geom="point", size=20,legend.key.size = 30) 
-q + colScale
-dev.off()
+# Data for predicting diameter
+
+DiameterTrain <- ProcessedData[(is.na(ProcessedData$diamNotNormalised) == FALSE),]
+DiameterTrain <- DiameterTrain[is.na(DiameterTrain$diameter_neowise)==FALSE,]
+DiameterTest <- ProcessedData[(is.na(RawData$diameter_neowise) == TRUE),]
+
+
+
+
+
 
 # Save prepared data for future use
 save(file="RawData.rda", x=RawData)
@@ -133,7 +145,11 @@ save(file="ProcessedData.rda", x=ProcessedData)
 save(file="num.rda", x=num)
 save(file="TrainData.rda", x=TrainData)
 save(file="TestData.rda", x=TestData)
+save(file="DiameterTrain.rda", x=DiameterTrain)
+save(file="DiameterTest.rda", x=DiameterTest)
 
+load(file="DiameterTrain.rda")
+load(file="DiameterTest.rda")
 load("RawData.rda")
 load("ProcessedData.rda")
 load("TrainData.rda")
